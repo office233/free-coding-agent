@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #0f172a;
+      color: #f8fafc;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 9999px;
+    }
+    .badge.connected {
+      background: #065f46;
+      color: #34d399;
+    }
+    .badge.disconnected {
+      background: #7f1d1d;
+      color: #f87171;
+    }
+    .section {
+      margin-bottom: 12px;
+    }
+    .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .value {
+      font-size: 12px;
+      background: #1e293b;
+      padding: 6px 10px;
+      border-radius: 6px;
+      word-break: break-all;
+    }
+    button {
+      width: 100%;
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #0369a1;
+    }
+    .tools-list {
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 11px;
+      background: #1e293b;
+      padding: 6px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">⚡ Free Coding Agent</div>
+    <span id="statusBadge" class="badge connected">Connecting...</span>
+  </div>
+
+  <div class="section">
+    <div class="label">Bridge WebSocket</div>
+    <div id="endpoint" class="value">ws://127.0.0.1:3001</div>
+  </div>
+
+  <div class="section">
+    <div class="label">Active Tab</div>
+    <div id="tabInfo" class="value">Loading...</div>
+  </div>
+
+  <div class="section">
+    <div class="label">WebMCP / Site Tools</div>
+    <div id="siteTools" class="tools-list">Scanning page...</div>
+  </div>
+
+  <button id="inspectBtn">Inspect Semantic Tree</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>

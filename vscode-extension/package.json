@@ -1,0 +1,31 @@
+{
+  "name": "free-coding-agent-lsp-bridge",
+  "displayName": "Free Coding Agent — LSP & Debug",
+  "description": "Exposes language-server diagnostics, references, definitions and debug state to the local Free Coding Agent MCP server.",
+  "version": "1.1.0",
+  "publisher": "free-coding-agent",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Debuggers",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Free Coding Agent",
+      "properties": {
+        "freeCodingAgent.port": {
+          "type": "number",
+          "default": 3005,
+          "description": "Local port for the bridge API (must match VSCODE_BRIDGE_URL in the server .env)."
+        }
+      }
+    }
+  }
+}

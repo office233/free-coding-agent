@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Free Coding Agent — Browser Controller",
+  "version": "2.3.0",
+  "minimum_chrome_version": "116",
+  "description": "Lets the local Free Coding Agent MCP server read and control this Chrome (semantic snapshots, trusted input via chrome.debugger, screenshots).",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms",
+    "debugger",
+    "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Free Coding Agent"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "name": "free-coding-agent",
+  "version": "2.0.0",
+  "description": "Universal MCP execution layer that gives frontier AI models secure hands on a real developer workstation.",
+  "main": "server.js",
+  "bin": {
+    "free-coding-agent": "bin/free-coding-agent.js"
+  },
+  "files": [
+    "bin/",
+    "chrome-extension/",
+    "lib/",
+    "scripts/",
+    "vscode-extension/",
+    ".env.example",
+    "LICENSE",
+    "README.md",
+    "server.js",
+    "stdio.js"
+  ],
+  "scripts": {
+    "start": "node stdio.js",
+    "start:http": "node server.js",
+    "setup": "node bin/free-coding-agent.js setup",
+    "doctor": "node bin/free-coding-agent.js doctor",
+    "check": "node scripts/check.js",
+    "privacy": "node scripts/privacy-check.js",
+    "preflight": "node scripts/preflight.js",
+    "test": "node --test --test-concurrency=1 --test-timeout=120000 \"tests/*.test.js\""
+  },
+  "license": "ISC",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "playwright-core": "^1.63.0",
+    "ws": "^8.22.0"
+  },
+  "private": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.1.0",
+    "pyright": "^1.1.414",
+    "typescript": "^6.0.3",
+    "typescript-language-server": "^6.0.1"
+  }
+}
