@@ -286,7 +286,7 @@ test('batch and read_many_files gather context in a single request', async () =>
   ] });
   const out = textOf(result);
   assert.match(out, /=== \[1\] read_many_files ===[\s\S]*1\| first[\s\S]*1\| second/);
-  assert.match(out, /=== \[2\] search_code ===[\s\S]*two\.txt:1:second/);
+  assert.match(out, /=== \[2\] search_code ===[\s\S]*two\.txt:1:\s*second/);
   assert.match(out, /=== \[3\] no_such_tool \(ERROR\) ===/);
   assert.equal(result.structuredContent.status, 'partial_failure');
   const parallel = await call('batch', { parallel: true, calls: [

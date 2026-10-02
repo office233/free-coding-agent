@@ -1,6 +1,12 @@
 # Changelog
 
-## 3.0.0 — next public release
+## 3.0.1
+
+- Fixed Windows allowed-root validation when the same legitimate path is represented once through an 8.3 short-name alias and once through its canonical long path, while preserving junction/symlink escape protection.
+- Added a built-in `find_symbol` reference-search fallback when ripgrep is unavailable on a clean workstation/CI runner.
+- Made integration assertions independent of ripgrep's optional whitespace formatting.
+
+## 3.0.0
 
 ### Durable Agent Mode
 

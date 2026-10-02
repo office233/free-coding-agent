@@ -1,6 +1,6 @@
 {
   "name": "free-coding-agent",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Provider-neutral MCP coding agent with durable multi-agent tasks, verification gates, and secure workstation tools.",
   "keywords": [
     "mcp",
