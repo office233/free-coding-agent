@@ -42,6 +42,67 @@ There is no common Free Coding Agent relay and no common remote credential.
 - authenticated local HTTP MCP;
 - optional personal public HTTPS MCP.
 
+## Durable Agent Mode
+
+Free Coding Agent includes a provider-neutral task kernel for autonomous and multi-agent coding. It does not call or hardcode a model vendor: any MCP-capable model can act as a worker.
+
+The durable loop is:
+
+```text
+task_submit
+    ↓
+task_next / task_claim
+    ↓
+worker edits + targeted checks
+    ↓
+task_ready
+    ↓
+task_verify
+   ↙       ↘
+repairing  succeeded
+   ↓
+task_claim → repair → task_ready → task_verify
+```
+
+Important guarantees:
+
+- append-only task journal with fsync;
+- idempotency keys prevent duplicate submissions;
+- dependencies form explicit task DAGs;
+- exclusive `leaseKey` ownership prevents two workers from editing the same worktree at once;
+- cross-process journal locking prevents two MCP processes from racing the same task;
+- lease expiry and dead-owner recovery fail to `interrupted`, never fake success;
+- `task_next` atomically assigns the highest-priority runnable work;
+- verification commands are executed as real processes in the task workspace;
+- tasks can require an independent logical verifier identity distinct from every implementation worker;
+- failed gates create an evidence-backed repair loop;
+- configurable maximum repair rounds prevent infinite retry loops;
+- only `task_verify` can transition verified work to `succeeded`;
+- task events provide a durable audit trail.
+
+Core tools:
+
+```text
+task_submit
+task_next
+task_claim
+task_heartbeat
+task_ready
+task_verify
+task_update
+task_reconcile
+task_contract
+task_status
+task_list
+task_events
+task_stats
+task_cancel
+```
+
+This is the portable agent-control layer: the model may come from OpenCode, an MCP desktop host, an IDE, a self-hosted model, or another compatible client. The task kernel only coordinates ownership, state, evidence and verification.
+
+Worker/verifier IDs are logical identities supplied by the MCP host for coordination and audit; they are not authentication credentials.
+
 ## Install on Windows
 
 The normal installation flow is:
@@ -82,6 +143,8 @@ For an MCP client running on the same machine, nothing public is needed:
 ```
 
 No domain. No TLS. No exposed port. No external service.
+
+For HTTP clients, Free Coding Agent uses the current MCP **Streamable HTTP** transport at `POST /mcp`. Deprecated legacy HTTP+SSE endpoints are intentionally not exposed in v3.
 
 ## Personal HTTPS mode
 
@@ -229,6 +292,11 @@ Important variables:
 | `MCP_API_KEY` | User's own HTTP bearer token |
 | `MCP_HOST` | Local HTTP bind address |
 | `PORT` | Local HTTP port |
+| `TASKS_DIR` | Durable task journal directory |
+| `TASK_LEASE_TTL_MS` | Worker lease lifetime |
+| `TASK_MAX_ACTIVE` | Maximum simultaneously running task workers |
+| `TASK_MAX_REPAIR_ROUNDS` | Maximum evidence-backed repair rounds |
+| `TASK_VERIFY_TIMEOUT_MS` | Per verification-command timeout |
 | `FCA_CHROME_BRIDGE_ENABLED` | Enable real-Chrome integration |
 | `CHROME_BRIDGE_TOKEN` | Local Chrome pairing secret |
 | `CHROME_EXTENSION_ID` | Optional extension identity pin |

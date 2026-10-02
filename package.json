@@ -1,7 +1,16 @@
 {
   "name": "free-coding-agent",
-  "version": "2.0.0",
-  "description": "Universal MCP execution layer that gives frontier AI models secure hands on a real developer workstation.",
+  "version": "3.0.0",
+  "description": "Provider-neutral MCP coding agent with durable multi-agent tasks, verification gates, and secure workstation tools.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "coding-agent",
+    "ai-agent",
+    "developer-tools",
+    "automation",
+    "opencode"
+  ],
   "main": "server.js",
   "bin": {
     "free-coding-agent": "bin/free-coding-agent.js"
@@ -15,6 +24,9 @@
     ".env.example",
     "LICENSE",
     "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "docs/",
     "server.js",
     "stdio.js"
   ],

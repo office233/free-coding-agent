@@ -35,7 +35,8 @@ async function startServer(env) {
       MCP_ALLOWED_ROOTS: '', CHROME_BRIDGE_ENABLED: 'true', CHROME_WS_PORT: '0', CHROME_BRIDGE_TOKEN: token, CHROME_EXTENSION_ID: '', WORKSPACES: temp, DEFAULT_WORKSPACE: temp,
       BROWSER_HEADLESS: 'true', BROWSER_PROFILE_DIR: path.join(temp, 'profile'), CLIPS_DIR: path.join(temp, 'clips'),
       SCREENSHOTS_DIR: path.join(temp, 'shots'), CHECKPOINTS_DIR: path.join(temp, 'checkpoints'), MEMORY_DIR: path.join(temp, 'memory'),
-      JOBS_DIR: path.join(temp, 'jobs'),
+      JOBS_DIR: path.join(temp, 'jobs'), TASKS_DIR: path.join(temp, 'tasks'),
+      TASK_MAX_ACTIVE: '4', TASK_MAX_REPAIR_ROUNDS: '2', TASK_VERIFY_TIMEOUT_MS: '30000',
       RESOURCE_MAX_CPU_COMMAND: '100', RESOURCE_MAX_CPU_BACKGROUND: '100', RESOURCE_MAX_CPU_HEAVY: '100',
       RESOURCE_MAX_CPU_ANALYSIS: '100', RESOURCE_MAX_CPU_AGENT: '100', RESOURCE_MAX_CPU_LSP: '100', RESOURCE_MAX_CPU_VIDEO: '100',
       RESOURCE_MIN_FREE_MB_COMMAND: '0', RESOURCE_MIN_FREE_MB_BACKGROUND: '0', RESOURCE_MIN_FREE_MB_HEAVY: '0',
@@ -105,6 +106,18 @@ test('standard MCP initialization identifies the provider-neutral server', async
   assert.equal(result.serverInfo.name, 'free-coding-agent');
   assert.match(result.instructions, /apply_patch[\s\S]*git_status/);
 });
+test('HTTP transport is Streamable HTTP only; deprecated SSE endpoints stay disabled', async () => {
+  const headers = { Authorization: `Bearer ${token}` };
+  const getMcp = await fetch(`${base}/mcp`, { headers });
+  assert.equal(getMcp.status, 405);
+  assert.match(await getMcp.text(), /Streamable HTTP/);
+  assert.equal((await fetch(`${base}/sse`, { headers })).status, 404);
+  assert.equal((await fetch(`${base}/messages?sessionId=legacy`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: '{}',
+  })).status, 404);
+});
 test('unapproved browser Origins are denied even with a valid bearer token', async () => {
   const response = await fetch(`${base}/api/tools`, { headers: { Authorization: `Bearer ${token}`, Origin: 'https://untrusted.invalid' } });
   assert.equal(response.status, 403);
@@ -125,7 +138,7 @@ test('tools/list exposes unique tools with object schemas and no hardcoded perso
     }
   }
   assert.ok(!JSON.stringify(tools).match(/[A-Z]:\\\\Users\\\\|\/Users\/|\/home\//i));
-  for (const expected of ['process_input', 'pty_start', 'pty_read', 'pty_write', 'resource_status', 'windows_list', 'windows_snapshot', 'windows_action', 'windows_wait', 'windows_screenshot', 'capability_list', 'capability_call']) {
+  for (const expected of ['process_input', 'pty_start', 'pty_read', 'pty_write', 'resource_status', 'windows_list', 'windows_snapshot', 'windows_action', 'windows_wait', 'windows_screenshot', 'task_submit', 'task_next', 'task_ready', 'task_verify', 'task_status', 'capability_list', 'capability_call']) {
     assert.ok(tools.some((t) => t.name === expected), `missing ${expected}`);
   }
 });
@@ -326,9 +339,128 @@ test('job_start returns a summary for fast commands and a pollable, cancellable 
   assert.equal(failing.isError, true);
   assert.match(textOf(failing), /exit 4[\s\S]*Failures\/errors[\s\S]*boom at step 2/);
 });
-test('catalog contains no provider orchestration or hidden worker-dispatch tools', async () => {
+test('catalog contains no provider-specific or hidden worker-dispatch tools', async () => {
   const names = (await rpc('tools/list', {})).tools.map((tool) => tool.name);
-  assert.equal(names.some((name) => /^(?:provider_|orchestrator_|worker_dispatch_|task_)/i.test(name)), false);
+  assert.equal(names.some((name) => /^(?:provider_|orchestrator_|worker_dispatch_)/i.test(name)), false);
+  assert.ok(names.some((name) => name === 'task_next'));
+});
+
+test('durable task loop verifies real commands and repairs evidence-backed failures', async () => {
+  const cwd = path.join(temp, 'agent-loop-project');
+  fs.mkdirSync(cwd, { recursive: true });
+  fs.writeFileSync(
+    path.join(cwd, 'verify.js'),
+    "const fs = require('fs'); console.log('EPHEMERAL_VERIFY_OUTPUT'); process.exit(fs.existsSync('ok.txt') ? 0 : 7);\n",
+  );
+
+  const submitted = (await call('task_submit', {
+    cwd,
+    objective: 'create the verification marker',
+    verificationCommands: ['node verify.js'],
+    maxRepairRounds: 2,
+  })).structuredContent.task;
+
+  const claimed = (await call('task_claim', { id: submitted.id, workerId: 'integration-worker' })).structuredContent.task;
+  assert.equal(claimed.state, 'running');
+  assert.ok(claimed.leaseId);
+
+  await call('task_ready', { id: submitted.id, leaseId: claimed.leaseId, evidence: { implementation: 'first attempt' } });
+  const firstVerify = (await call('task_verify', { id: submitted.id })).structuredContent;
+  assert.equal(firstVerify.verification.passed, false);
+  assert.equal(firstVerify.task.state, 'repairing');
+
+  const repair = (await call('task_claim', { id: submitted.id, workerId: 'repair-worker' })).structuredContent.task;
+  assert.equal(repair.repairRounds, 1);
+  fs.writeFileSync(path.join(cwd, 'ok.txt'), 'verified\n');
+  await call('task_ready', { id: submitted.id, leaseId: repair.leaseId, evidence: { implementation: 'repaired' } });
+
+  const secondVerify = (await call('task_verify', { id: submitted.id })).structuredContent;
+  assert.equal(secondVerify.verification.passed, true);
+  assert.equal(secondVerify.task.state, 'succeeded');
+  assert.match(secondVerify.verification.checks[0].stdoutTail, /EPHEMERAL_VERIFY_OUTPUT/);
+  assert.doesNotMatch(JSON.stringify(secondVerify.task.lastVerification), /EPHEMERAL_VERIFY_OUTPUT/);
+
+  const events = (await call('task_events', { id: submitted.id })).structuredContent.events;
+  assert.ok(events.some((event) => event.event === 'verification_failed_repair'));
+  assert.ok(events.some((event) => event.event === 'verification_passed'));
+});
+
+test('manual verification cannot pass without explicit evidence', async () => {
+  const cwd = path.join(temp, 'manual-verification-project');
+  fs.mkdirSync(cwd, { recursive: true });
+  const submitted = (await call('task_submit', {
+    cwd,
+    objective: 'manual evidence task',
+  })).structuredContent.task;
+  const claimed = (await call('task_claim', { id: submitted.id, workerId: 'manual-worker' })).structuredContent.task;
+  await call('task_ready', { id: submitted.id, leaseId: claimed.leaseId });
+
+  const noEvidence = await call('task_verify', { id: submitted.id, verdict: 'pass' });
+  assert.equal(noEvidence.isError, true);
+  assert.match(textOf(noEvidence), /requires non-empty evidence/i);
+
+  const passed = (await call('task_verify', {
+    id: submitted.id,
+    verdict: 'pass',
+    evidence: { independentReview: 'approved' },
+  })).structuredContent;
+  assert.equal(passed.task.state, 'succeeded');
+});
+
+test('independent verification policy rejects implementation worker identity', async () => {
+  const cwd = path.join(temp, 'independent-verification-project');
+  fs.mkdirSync(cwd, { recursive: true });
+  const submitted = (await call('task_submit', {
+    cwd,
+    objective: 'require a distinct verifier',
+    verificationCommands: ['node -e "process.exit(0)"'],
+    requireIndependentVerifier: true,
+  })).structuredContent.task;
+
+  const missingWorker = await call('task_claim', { id: submitted.id });
+  assert.equal(missingWorker.isError, true);
+  assert.match(textOf(missingWorker), /workerId is required/i);
+
+  const claimed = (await call('task_claim', {
+    id: submitted.id,
+    workerId: 'implementation-worker',
+  })).structuredContent.task;
+  await call('task_ready', { id: submitted.id, leaseId: claimed.leaseId });
+
+  const sameIdentity = await call('task_verify', {
+    id: submitted.id,
+    verifierId: 'implementation-worker',
+  });
+  assert.equal(sameIdentity.isError, true);
+  assert.match(textOf(sameIdentity), /different workerId/i);
+
+  const verified = (await call('task_verify', {
+    id: submitted.id,
+    verifierId: 'independent-verifier',
+  })).structuredContent;
+  assert.equal(verified.task.state, 'succeeded');
+  assert.equal(verified.task.lastVerification.verifierId, 'independent-verifier');
+});
+
+test('task_verify allows only one verifier process per task at a time', async () => {
+  const cwd = path.join(temp, 'verification-lock-project');
+  fs.mkdirSync(cwd, { recursive: true });
+  const submitted = (await call('task_submit', {
+    cwd,
+    objective: 'serialize verification',
+    verificationCommands: ['node -e "setTimeout(()=>process.exit(0),800)"'],
+  })).structuredContent.task;
+  const claimed = (await call('task_claim', { id: submitted.id, workerId: 'lock-worker' })).structuredContent.task;
+  await call('task_ready', { id: submitted.id, leaseId: claimed.leaseId });
+
+  const [first, second] = await Promise.all([
+    call('task_verify', { id: submitted.id }),
+    call('task_verify', { id: submitted.id }),
+  ]);
+  const results = [first, second];
+  assert.equal(results.filter((result) => result.isError).length, 1);
+  assert.equal(results.filter((result) => result.structuredContent?.task?.state === 'succeeded').length, 1);
+  assert.match(textOf(results.find((result) => result.isError)), /Verification is already running/i);
 });
 test('authentication happens before the body is parsed', async () => {
   const res = await fetch(`${base}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{not json' });

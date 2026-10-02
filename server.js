@@ -3,7 +3,6 @@
 const { timingSafeEqual } = require('node:crypto');
 const express = require('express');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
-const { SSEServerTransport } = require('@modelcontextprotocol/sdk/server/sse.js');
 const config = require('./lib/config');
 const { createChromeBridge } = require('./lib/chrome-bridge');
 const { createRegistry } = require('./lib/tools');
@@ -74,8 +73,6 @@ function auth(req, res, next) {
 const parseJson = express.json({ limit: '25mb' });
 app.use(auth, parseJson);
 
-const sseSessions = new Map();
-
 app.post('/mcp', async (req, res) => {
   const server = createMcpServer(registry);
   const transport = new StreamableHTTPServerTransport({
@@ -99,32 +96,9 @@ app.post('/mcp', async (req, res) => {
   }
 });
 
-app.get('/mcp', (req, res) => {
-  if ((req.headers.accept || '').includes('text/event-stream')) return openSse(req, res);
-  return res.status(405).set('Allow', 'POST').json({ error: 'Use POST for Streamable HTTP, or GET /sse for legacy SSE' });
-});
+app.get('/mcp', (_req, res) => res.status(405).set('Allow', 'POST').json({ error: 'Use POST for MCP Streamable HTTP' }));
 
 app.delete('/mcp', (_req, res) => res.status(405).set('Allow', 'POST').end());
-
-async function openSse(req, res) {
-  const server = createMcpServer(registry);
-  const transport = new SSEServerTransport('/messages', res);
-  sseSessions.set(transport.sessionId, { server, transport });
-  res.on('close', () => {
-    sseSessions.delete(transport.sessionId);
-    transport.close().catch(() => {});
-    server.close().catch(() => {});
-  });
-  await server.connect(transport);
-}
-
-app.get('/sse', openSse);
-
-app.post('/messages', async (req, res) => {
-  const session = sseSessions.get(String(req.query.sessionId || ''));
-  if (!session) return res.status(404).json({ error: 'Unknown or expired SSE session' });
-  return session.transport.handlePostMessage(req, res, req.body);
-});
 
 app.get('/api/status', (_req, res) => res.json({
   status: 'ok',
@@ -167,11 +141,6 @@ const httpServer = app.listen(config.port, config.host, (error) => {
 });
 
 async function shutdown() {
-  for (const { server, transport } of sseSessions.values()) {
-    await transport.close().catch(() => {});
-    await server.close().catch(() => {});
-  }
-  sseSessions.clear();
   await require('./lib/lsp').stopAll();
   await require('./lib/tools/browser').shutdown().catch(() => {});
   await chromeBridge.close().catch(() => {});

@@ -5,7 +5,7 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SKIP_DIRS = new Set([
-  '.git', 'node_modules', '.browser-profile', '.checkpoints', '.jobs',
+  '.git', 'node_modules', '.browser-profile', '.checkpoints', '.jobs', '.tasks',
   '.memory', 'clips', 'logs', 'screenshots',
 ]);
 const ALLOWED_ENV = '.env.example';

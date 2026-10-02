@@ -1,7 +1,7 @@
 'use strict';
 
-// Fast load-time smoke test used by the live supervisor before it replaces a healthy server.
-// node --check catches syntax; requiring every bridge module catches top-level ReferenceErrors,
+// Fast load-time smoke test used before starting/replacing an MCP server.
+// node --check catches syntax; requiring every project module catches top-level ReferenceErrors,
 // missing exports/imports and optional-dependency mistakes that syntax alone cannot see.
 const fs = require('node:fs');
 const path = require('node:path');

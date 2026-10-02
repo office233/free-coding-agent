@@ -31,6 +31,9 @@ test('stdio transport exposes the provider-neutral MCP catalog', async () => {
     assert.ok(names.includes('run_command'));
     assert.ok(names.includes('git_status'));
     assert.ok(names.includes('lsp_diagnostics'));
+    assert.ok(names.includes('task_submit'));
+    assert.ok(names.includes('task_next'));
+    assert.ok(names.includes('task_verify'));
     assert.ok(names.includes('batch'));
     assert.equal(new Set(names).size, names.length);
   } finally {
